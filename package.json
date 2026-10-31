@@ -1,0 +1,13 @@
+{
+  "name": "ringlock",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A turn-based marble sorting puzzle on a rotating turntable.",
+  "scripts": {
+    "build": "node tools/build.js",
+    "test": "node tools/check-levels.js",
+    "test:optimal": "node --max-old-space-size=4096 tools/check-levels.js --optimal",
+    "generate": "node --max-old-space-size=3500 tools/generate.js"
+  },
+  "license": "UNLICENSED"
+}
