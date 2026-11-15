@@ -87,6 +87,7 @@ button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .map-legend b { color: var(--brass); }
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; padding: 6px 0; color: var(--ink); font-weight: 700; }
 .set-row small { display: block; font-weight: 500; color: var(--muted); font-size: 0.78rem; }
+.set-row .btn.mini { width: auto; flex: none; margin: 0; padding: 8px 14px; font-size: 0.85rem; }
 .switch { position: relative; width: 48px; height: 28px; flex: none; }
 .switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
 .switch span { position: absolute; inset: 0; border-radius: 14px; background: rgba(255,255,255,0.15); transition: background 0.2s; pointer-events: none; }
@@ -162,6 +163,7 @@ button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
         <label class="set-row">Volume<input type="range" id="volRange" min="0" max="1" step="0.05"></label>
         <label class="set-row"><span>Vibration<small>On phones that support it</small></span><span class="switch"><input type="checkbox" id="setVibe"><span></span></span></label>
         <label class="set-row"><span>Move previews<small>Arrows at each tube mouth</small></span><span class="switch"><input type="checkbox" id="setPrev"><span></span></span></label>
+        <div class="set-row" id="installRow" hidden><span>Install on your phone<small id="installHint">Play from your home screen, even offline</small></span><button class="btn mini" id="installBtn">Install</button></div>
         <button class="btn danger" id="resetBtn">Reset progress</button>
         <button class="btn" id="setClose">Done</button>
       </div>
@@ -309,7 +311,9 @@ function undo() {
 // ---------- Tutorial: a hand points at the next move of the best solution
 function updateTutorial() {
   const hand = $('hand');
-  const nextIdx = tut && status === 'play' && $('setOv').hidden && $('levelsOv').hidden ? pathKeys.get(keyOf(st)) : undefined;
+  // while Settings or the level map is open, just hide the hand and leave the tip as it is
+  if (!$('setOv').hidden || !$('levelsOv').hidden) { hand.hidden = true; return; }
+  const nextIdx = tut && status === 'play' ? pathKeys.get(keyOf(st)) : undefined;
   const offPath = tut && status === 'play' && nextIdx === undefined;
   if (!tut || status !== 'play' || (!offPath && nextIdx === undefined) || (nextIdx !== undefined && moves >= tut.upTo)) {
     hand.hidden = true;
@@ -928,5 +932,35 @@ if (window.ResizeObserver) new ResizeObserver(layout).observe(stage);
 loadLevel(store.get('rl-level', 0));
 window.__rl = { get G() { return G; }, get st() { return st; }, get hint() { return hint; }, askHint, get cfg() { return cfg; }, get moves() { return moves; }, get status() { return status; }, turn, tapTube, undo, loadLevel, LEVELS };
 requestAnimationFrame(frame);
+
+// ---------- home-screen app ----------
+// Offline support only runs when the game is served as a web app (dist/ on a web
+// host); inside a preview frame or a file:// page this quietly does nothing.
+const standalone = (() => { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (e) { return false; } })();
+let installPrompt = null;
+function updateInstallRow() {
+  const row = $('installRow'), btn = $('installBtn'), hint = $('installHint');
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isApp = !!document.querySelector('link[rel="manifest"]');
+  if (standalone || !isApp) { row.hidden = true; return; }
+  if (installPrompt) { row.hidden = false; btn.hidden = false; hint.textContent = 'Play from your home screen, even offline'; }
+  else if (ios) { row.hidden = false; btn.hidden = true; hint.textContent = 'In Safari tap Share, then Add to Home Screen'; }
+  else { row.hidden = true; }
+}
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; updateInstallRow(); });
+window.addEventListener('appinstalled', () => { installPrompt = null; $('installRow').hidden = true; });
+$('installBtn').onclick = async () => {
+  sfx.ui();
+  if (!installPrompt) return;
+  const p = installPrompt; installPrompt = null;
+  try { await p.prompt(); await p.userChoice; } catch (e) {}
+  updateInstallRow();
+};
+updateInstallRow();
+try {
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && document.querySelector('link[rel="manifest"]')) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+} catch (e) {}
 })();
 </script>
